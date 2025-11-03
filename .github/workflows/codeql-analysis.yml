@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'   # ajustar se o Juice Shop requer outra versão
+          node-version: 22.12.0
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3

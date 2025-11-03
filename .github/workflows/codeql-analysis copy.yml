@@ -1,0 +1,53 @@
+name: CodeQL Analysis - Juice Shop 2
+
+on:
+  workflow_dispatch:  # Permite execução manual
+    inputs:
+      logLevel:
+        description: 'Nível de logs'
+        required: true
+        default: 'warning'
+        type: choice
+        options:
+          - info
+          - warning
+          - debug
+
+jobs:
+  analyze:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v3
+
+      - name: Configurar Node.js (v22.12)
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22.12.0
+
+      - name: Instalar dependências do Juice Shop
+        working-directory: juice-shop
+        run: |
+          echo "Instalando dependências do Juice Shop..."
+          npm install --legacy-peer-deps
+
+      - name: Compilar Juice Shop
+        working-directory: juice-shop
+        run: |
+          echo "A construir o projeto Juice Shop..."
+          npm run build
+
+      - name: Configurar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Compilar e preparar base de dados
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Executar análise CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
