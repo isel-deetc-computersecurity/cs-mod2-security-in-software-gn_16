@@ -34,7 +34,7 @@ jobs:
         working-directory: ./juice-shop
         run: |
           echo "Installing node dependencies for Juice Shop..."
-          npm ci
+          npm install
           echo "Building (if applicable)..."
           npm run build || true
 
