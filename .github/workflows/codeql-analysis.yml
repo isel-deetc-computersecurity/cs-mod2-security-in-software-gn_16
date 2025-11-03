@@ -1,30 +1,42 @@
-name: "CodeQL Manual Analysis"
+name: "CodeQL Manual Analysis - Juice Shop"
 
 on:
   workflow_dispatch:
 
 jobs:
   analyze:
-    name: Analyze
+    name: Analyze Juice Shop
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
       security-events: write
 
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'java' ]
-
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (with submodules)
         uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'   # ajustar se o Juice Shop requer outra versão
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
-          
-      - name: Perform CodeQL Analysis
+          languages: javascript
+
+      # Build step: instalar dependências e construir o projecto dentro da subpasta 'juice-shop'
+      - name: Build Juice Shop (npm install / build)
+        working-directory: ./juice-shop
+        run: |
+          echo "Installing node dependencies for Juice Shop..."
+          npm ci
+          echo "Building (if applicable)..."
+          npm run build || true
+
+      - name: Run CodeQL analysis
         uses: github/codeql-action/analyze@v3
