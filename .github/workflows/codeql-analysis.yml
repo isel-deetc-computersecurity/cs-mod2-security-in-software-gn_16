@@ -13,30 +13,34 @@ jobs:
       security-events: write
 
     steps:
+      # 1️⃣ Checkout do repositório (incluindo submódulos)
       - name: Checkout repository (with submodules)
         uses: actions/checkout@v4
         with:
           submodules: true
           fetch-depth: 0
 
-      - name: Setup Node.js
+      # 2️⃣ Instalar Node.js versão compatível com Angular CLI
+      - name: Setup Node.js (v22.12.0)
         uses: actions/setup-node@v4
         with:
           node-version: 22.12.0
 
+      # 3️⃣ Inicializar CodeQL para JavaScript (analisará o backend e frontend)
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
 
-      # Build step: instalar dependências e construir o projecto dentro da subpasta 'juice-shop'
+      # 4️⃣ Instalar dependências e construir o Juice Shop
       - name: Build Juice Shop (npm install / build)
         working-directory: ./juice-shop
         run: |
           echo "Installing node dependencies for Juice Shop..."
-          npm install
-          echo "Building (if applicable)..."
+          npm install --legacy-peer-deps
+          echo "Building frontend and backend..."
           npm run build || true
 
+      # 5️⃣ Executar a análise CodeQL
       - name: Run CodeQL analysis
         uses: github/codeql-action/analyze@v3
