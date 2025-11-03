@@ -1,6 +1,5 @@
 name: "CodeQL Manual Analysis"
 
-# 🔹 O workflow é acionado manualmente pelo utilizador no GitHub Actions
 on:
   workflow_dispatch:
 
@@ -16,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'java' ] 
+        language: [ 'java' ]
 
     steps:
       - name: Checkout repository
@@ -27,8 +26,10 @@ jobs:
         with:
           languages: ${{ matrix.language }}
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+      - name: Build with Maven
+        run: |
+          echo "🚧 Compilando o projeto com Maven..."
+          mvn clean install -DskipTests
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
